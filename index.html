@@ -173,17 +173,23 @@
     margin-bottom:7px;
   }
   .item.has-qty{border-color:var(--amber);}
-  .item input.name{
+  .item textarea.name{
     background:transparent;
     border:none;
     color:var(--ink);
     font-size:14px;
     font-weight:600;
+    font-family:inherit;
     padding:4px 2px;
     width:100%;
     min-width:0;
+    resize:none;
+    overflow:hidden;
+    white-space:pre-wrap;
+    word-break:break-word;
+    line-height:1.25;
   }
-  .item input.name:focus{outline:none;}
+  .item textarea.name:focus{outline:none;}
   .item .price-wrap{
     display:flex;align-items:center;justify-content:flex-end;
     gap:5px;
@@ -324,7 +330,6 @@
 <header>
   <div>
     <h1>Mis cuentas Mipyme</h1>
-    <div class="sub">Precio y cantidad se ponen aquí mismo — el total se calcula solo</div>
   </div>
   <div class="header-actions">
     <button class="icon-btn" id="temaBtn" onclick="alternarTema()" title="Cambiar tema">🌙</button>
@@ -418,7 +423,7 @@ function agregarProducto(){
   productos.push({id:'p_'+Date.now(), nombre:'', precio:0, cantidad:0});
   guardar();
   render();
-  const inputs = document.querySelectorAll('input.name');
+  const inputs = document.querySelectorAll('textarea.name');
   if(inputs.length) inputs[inputs.length-1].focus();
 }
 
@@ -458,13 +463,21 @@ function actualizarCampo(id, campo, valor){
 function editarPrecio(id){
   editando.add(id);
   render();
+  const bottom = document.querySelector('.bottom');
+  if(bottom) bottom.style.display = 'none';
   setTimeout(()=>{
     const el = document.querySelector(`.item input.price[data-id="${id}"]`);
-    if(el){ el.focus(); el.select(); }
+    if(el){
+      el.focus();
+      el.select();
+      el.scrollIntoView({block:'center', behavior:'smooth'});
+    }
   }, 0);
 }
 
 function confirmarPrecio(id, valor){
+  const bottom = document.querySelector('.bottom');
+  if(bottom) bottom.style.display = '';
   actualizarCampo(id, 'precio', valor);
 }
 
@@ -493,7 +506,7 @@ function render(){
            <button class="edit-price" onclick="editarPrecio('${p.id}')">✎</button>`;
       return `
         <div class="item ${p.cantidad>0?'has-qty':''}">
-          <input class="name" value="${p.nombre}" placeholder="Producto" onchange="actualizarCampo('${p.id}','nombre',this.value)">
+          <textarea class="name" rows="1" placeholder="Producto" oninput="autoGrow(this)" onchange="actualizarCampo('${p.id}','nombre',this.value)">${escapeHtml(p.nombre)}</textarea>
           <div class="price-wrap">
             <span class="currency">$</span>
             ${precioHtml}
@@ -505,7 +518,20 @@ function render(){
       `;
     }).join('');
   }
+  document.querySelectorAll('textarea.name').forEach(autoGrow);
   renderTotales();
+}
+
+function autoGrow(el){
+  el.style.height = 'auto';
+  el.style.height = el.scrollHeight + 'px';
+}
+
+function escapeHtml(str){
+  return String(str||'')
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;');
 }
 
 function renderTotales(){
@@ -643,6 +669,37 @@ function cerrarHistorial(){
 
 cargarTema();
 cargarDatos();
+
+// Evita que el teclado tape la vista al escribir nombre o cantidad
+document.getElementById('lista').addEventListener('focusin', (e)=>{
+  if(e.target.matches('textarea.name, input.qty')){
+    const bottom = document.querySelector('.bottom');
+    if(bottom) bottom.style.display = 'none';
+    setTimeout(()=> e.target.scrollIntoView({block:'center', behavior:'smooth'}), 60);
+  }
+});
+document.getElementById('lista').addEventListener('focusout', (e)=>{
+  if(!e.target.matches('textarea.name, input.qty')) return;
+  setTimeout(()=>{
+    const activo = document.activeElement;
+    const sigueEditando = activo && activo.closest && activo.closest('#lista') && activo.matches('textarea.name, input.qty, input.price');
+    if(!sigueEditando){
+      const bottom = document.querySelector('.bottom');
+      if(bottom) bottom.style.display = '';
+    }
+  }, 100);
+});
+
+// Botón atrás: primer toque avisa, segundo toque (antes de 2s) deja salir
+let salirConfirmado = false;
+history.pushState({app:true}, '');
+window.addEventListener('popstate', function(){
+  if(salirConfirmado) return; // deja que la app se cierre en este toque
+  salirConfirmado = true;
+  history.pushState({app:true}, '');
+  mostrarToast('Toca atrás otra vez para salir');
+  setTimeout(()=>{ salirConfirmado = false; }, 2000);
+});
 </script>
 
 </body>
